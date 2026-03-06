@@ -97,7 +97,7 @@ Este laboratorio implementa una **VPN Site-to-Site basada en enrutamiento (Route
 
 ---
 
-## ⚙️ Configuración por Dispositivo
+##  Configuración por Dispositivo
 
 ### PC1 (VPCS)
 ```
