@@ -1,0 +1,522 @@
+# DMVPN Fase 3 Hub-and-Spoke — IPSec IKEv2 con EIGRP
+
+**Asignatura:** Seguridad en Redes
+
+**Estudiante:** Roberto de Jesus
+
+**Matrícula:** 2023-0348
+
+**Profesor:** Jonathan Esteban Rondón
+
+**Fecha:** 2025
+
+**Link del video:** [URL del video]
+
+---
+
+## Tabla de Contenidos
+- [Descripción General](#-descripción-general)
+- [Topología del Laboratorio](#-topología-del-laboratorio)
+- [Parámetros](#-parámetros)
+- [Configuración por Dispositivo](#-configuración-por-dispositivo)
+- [Verificación](#-verificación)
+- [Cómo Demostrar la Diferencia con Fase 2](#-cómo-demostrar-la-diferencia-con-fase-2)
+
+---
+
+##  Descripción General
+
+Este laboratorio implementa una **VPN DMVPN Fase 3** con **1 Hub y 2 Spokes**, usando **IPSec IKEv2** en modo transport y **EIGRP** como protocolo de enrutamiento. La Fase 3 agrega dos comandos críticos que permiten al Hub enviar **NHRP Redirects** a los Spokes y a los Spokes instalar **Shortcut Routes** directas, permitiendo además la **summarización de rutas** en el Hub.
+
+### Diferencia con Fase 2
+- **HUB:** agrega `ip nhrp redirect` → envía redirect al Spoke origen con la IP del Spoke destino
+- **SPOKE:** agrega `ip nhrp shortcut` → instala ruta shortcut directa al Spoke destino
+- La ruta en el Spoke cambia de `via 10.0.0.1 (HUB)` a `via 10.0.0.3 (SPOKE2)` después del primer ping
+
+> ** ADVERTENCIA:** Estas configuraciones están diseñadas **EXCLUSIVAMENTE** para fines educativos en entornos simulados como **GNS3**.
+
+---
+
+##  Topología del Laboratorio
+
+### Diagrama de Red
+
+```
+                         +----------+
+                         | IOU6 HUB |
+                         | 200.0.0.2|
+                         | 10.0.0.1 |
+                         +----+-----+
+                              | e0/0
+                         +----+-----+
+                         | IOU5 ISP |
+                         +----+-----+
+               e0/0 (200.0.0.5) /   \ (200.0.0.9) e0/1
+                                /     \
+                    +----------+       +----------+
+                    | IOU1     |       | IOU2     |
+                    | SPOKE1   |       | SPOKE2   |
+                    | 200.0.0.6|       |200.0.0.10|
+                    | 10.0.0.2 |       | 10.0.0.3 |
+                    +----+-----+       +-----+----+
+                         | e0/1             | e0/1
+                    +----+-----+       +-----+----+
+                    | IOU3 SW  |       | IOU4 SW  |
+                    +----+-----+       +-----+----+
+                         |                   |
+                        PC1                 PC2
+                   10.10.2.100         10.10.3.100
+
+Subred DMVPN (mGRE): 10.0.0.0/24
+ISP hacia HUB: e0/2 = 200.0.0.1/30
+```
+
+### Configuración de Red
+
+| Dispositivo | Interfaz | IP | Descripción |
+|---|---|---|---|
+| IOU6 HUB | e0/0 | 200.0.0.2/30 | WAN hacia ISP |
+| IOU6 HUB | Tunnel0 | 10.0.0.1/24 | mGRE DMVPN |
+| IOU5 ISP | e0/2 | 200.0.0.1/30 | hacia HUB |
+| IOU5 ISP | e0/0 | 200.0.0.5/30 | hacia SPOKE1 |
+| IOU5 ISP | e0/1 | 200.0.0.9/30 | hacia SPOKE2 |
+| IOU1 SPOKE1 | e0/0 | 200.0.0.6/30 | WAN |
+| IOU1 SPOKE1 | e0/1 | 10.10.2.1/24 | LAN |
+| IOU1 SPOKE1 | Tunnel0 | 10.0.0.2/24 | mGRE |
+| IOU2 SPOKE2 | e0/0 | 200.0.0.10/30 | WAN |
+| IOU2 SPOKE2 | e0/1 | 10.10.3.1/24 | LAN |
+| IOU2 SPOKE2 | Tunnel0 | 10.0.0.3/24 | mGRE |
+| PC1 | e0 | 10.10.2.100/24 | GW 10.10.2.1 |
+| PC2 | e0 | 10.10.3.100/24 | GW 10.10.3.1 |
+
+---
+
+##  Parámetros
+
+| Parámetro | Valor |
+|---|---|
+| Versión IKE | IKEv2 |
+| PSK | `Cisco12345` (wildcard) |
+| Cifrado IPSec | AES-256 |
+| Hash IPSec | SHA-256 |
+| Modo IPSec | **Transport** |
+| Protocolo Túnel | mGRE (multipoint GRE) |
+| NHRP Network-ID | 100 |
+| NHRP Auth | `nhrpkey` |
+| Subred DMVPN | 10.0.0.0/24 |
+| Enrutamiento | EIGRP AS 100 |
+| HUB extra | `ip nhrp redirect` |
+| SPOKE extra | `ip nhrp shortcut` |
+
+---
+
+##  Configuración por Dispositivo
+
+### PC1 (VPCS)
+```
+ip 10.10.2.100 255.255.255.0 10.10.2.1
+save
+```
+
+### PC2 (VPCS)
+```
+ip 10.10.3.100 255.255.255.0 10.10.3.1
+save
+```
+
+### IOU3 — Switch LAN-A (SPOKE1)
+```cisco
+hostname SW-A
+
+interface e0/0
+ switchport mode access
+ switchport access vlan 1
+ no shutdown
+
+interface e0/1
+ switchport mode access
+ switchport access vlan 1
+ no shutdown
+```
+
+### IOU4 — Switch LAN-B (SPOKE2)
+```cisco
+hostname SW-B
+
+interface e0/0
+ switchport mode access
+ switchport access vlan 1
+ no shutdown
+
+interface e0/1
+ switchport mode access
+ switchport access vlan 1
+ no shutdown
+```
+
+### IOU5 — ISP
+```cisco
+hostname R-ISP
+
+! ── Interfaz hacia HUB ──────────────────────────────────────
+interface e0/2
+ description hacia-HUB
+ ip address 200.0.0.1 255.255.255.252
+ no shutdown
+
+! ── Interfaz hacia SPOKE1 ───────────────────────────────────
+interface e0/0
+ description hacia-SPOKE1
+ ip address 200.0.0.5 255.255.255.252
+ no shutdown
+
+! ── Interfaz hacia SPOKE2 ───────────────────────────────────
+interface e0/1
+ description hacia-SPOKE2
+ ip address 200.0.0.9 255.255.255.252
+ no shutdown
+
+! ── Rutas estáticas ─────────────────────────────────────────
+ip route 10.10.2.0 255.255.255.0 200.0.0.6
+ip route 10.10.3.0 255.255.255.0 200.0.0.10
+```
+
+### IOU6 — HUB (DMVPN Fase 3 IKEv2)
+```cisco
+hostname HUB-F3
+
+! ════════════════════════════════════════════════════════════
+!  INTERFACES FÍSICAS
+! ════════════════════════════════════════════════════════════
+interface e0/0
+ description WAN-ISP
+ ip address 200.0.0.2 255.255.255.252
+ no shutdown
+
+! ════════════════════════════════════════════════════════════
+!  RUTA DEFAULT
+! ════════════════════════════════════════════════════════════
+ip route 0.0.0.0 0.0.0.0 200.0.0.1
+
+! ════════════════════════════════════════════════════════════
+!  IKEv2 — PSK wildcard para todos los spokes
+! ════════════════════════════════════════════════════════════
+crypto ikev2 proposal PROP-DMVPN
+ encryption aes-cbc-256
+ integrity sha256
+ group 14
+
+crypto ikev2 policy POL-DMVPN
+ proposal PROP-DMVPN
+
+crypto ikev2 keyring KR-DMVPN
+ peer SPOKES
+  address 0.0.0.0 0.0.0.0
+  pre-shared-key Cisco12345
+
+crypto ikev2 profile PROF-DMVPN
+ match identity remote address 0.0.0.0
+ authentication remote pre-share
+ authentication local pre-share
+ keyring local KR-DMVPN
+
+! ════════════════════════════════════════════════════════════
+!  IPSEC — modo TRANSPORT
+! ════════════════════════════════════════════════════════════
+crypto ipsec transform-set TS-DMVPN esp-aes 256 esp-sha256-hmac
+ mode transport
+
+crypto ipsec profile PROF-IPSEC-DMVPN
+ set transform-set TS-DMVPN
+ set pfs group14
+ set ikev2-profile PROF-DMVPN
+
+! ════════════════════════════════════════════════════════════
+!  TÚNEL mGRE — HUB FASE 3
+!  ip nhrp redirect = COMANDO CLAVE FASE 3
+!  Envía NHRP Redirect al Spoke origen con IP del destino
+! ════════════════════════════════════════════════════════════
+interface Tunnel0
+ description DMVPN-HUB-F3
+ ip address 10.0.0.1 255.255.255.0
+ no ip redirects
+ ip mtu 1400
+ ip nhrp authentication nhrpkey
+ ip nhrp network-id 100
+ ip nhrp map multicast dynamic
+ ip nhrp redirect
+ tunnel source e0/0
+ tunnel mode gre multipoint
+ tunnel protection ipsec profile PROF-IPSEC-DMVPN
+ no shutdown
+
+! ════════════════════════════════════════════════════════════
+!  EIGRP
+! ════════════════════════════════════════════════════════════
+router eigrp 100
+ network 10.0.0.0 0.0.0.255
+ no auto-summary
+```
+
+### IOU1 — SPOKE1 (DMVPN Fase 3 IKEv2)
+```cisco
+hostname SPOKE1-F3
+
+! ════════════════════════════════════════════════════════════
+!  INTERFACES FÍSICAS
+! ════════════════════════════════════════════════════════════
+interface e0/0
+ description WAN-ISP
+ ip address 200.0.0.6 255.255.255.252
+ no shutdown
+
+interface e0/1
+ description LAN-A
+ ip address 10.10.2.1 255.255.255.0
+ no shutdown
+
+! ════════════════════════════════════════════════════════════
+!  RUTA DEFAULT
+! ════════════════════════════════════════════════════════════
+ip route 0.0.0.0 0.0.0.0 200.0.0.5
+
+! ════════════════════════════════════════════════════════════
+!  IKEv2
+! ════════════════════════════════════════════════════════════
+crypto ikev2 proposal PROP-DMVPN
+ encryption aes-cbc-256
+ integrity sha256
+ group 14
+
+crypto ikev2 policy POL-DMVPN
+ proposal PROP-DMVPN
+
+crypto ikev2 keyring KR-DMVPN
+ peer HUB
+  address 0.0.0.0 0.0.0.0
+  pre-shared-key Cisco12345
+
+crypto ikev2 profile PROF-DMVPN
+ match identity remote address 0.0.0.0
+ authentication remote pre-share
+ authentication local pre-share
+ keyring local KR-DMVPN
+
+! ════════════════════════════════════════════════════════════
+!  IPSEC
+! ════════════════════════════════════════════════════════════
+crypto ipsec transform-set TS-DMVPN esp-aes 256 esp-sha256-hmac
+ mode transport
+
+crypto ipsec profile PROF-IPSEC-DMVPN
+ set transform-set TS-DMVPN
+ set pfs group14
+ set ikev2-profile PROF-DMVPN
+
+! ════════════════════════════════════════════════════════════
+!  TÚNEL mGRE — SPOKE1 FASE 3
+!  ip nhrp shortcut = COMANDO CLAVE FASE 3
+!  Instala shortcut route directa al Spoke destino
+! ════════════════════════════════════════════════════════════
+interface Tunnel0
+ description DMVPN-SPOKE1-F3
+ ip address 10.0.0.2 255.255.255.0
+ no ip redirects
+ ip mtu 1400
+ ip nhrp authentication nhrpkey
+ ip nhrp network-id 100
+ ip nhrp nhs 10.0.0.1
+ ip nhrp map 10.0.0.1 200.0.0.2
+ ip nhrp map multicast 200.0.0.2
+ ip nhrp shortcut
+ tunnel source e0/0
+ tunnel mode gre multipoint
+ tunnel protection ipsec profile PROF-IPSEC-DMVPN
+ no shutdown
+
+! ════════════════════════════════════════════════════════════
+!  EIGRP
+! ════════════════════════════════════════════════════════════
+router eigrp 100
+ network 10.0.0.0 0.0.0.255
+ network 10.10.2.0 0.0.0.255
+ no auto-summary
+```
+
+### IOU2 — SPOKE2 (DMVPN Fase 3 IKEv2)
+```cisco
+hostname SPOKE2-F3
+
+! ════════════════════════════════════════════════════════════
+!  INTERFACES FÍSICAS
+! ════════════════════════════════════════════════════════════
+interface e0/0
+ description WAN-ISP
+ ip address 200.0.0.10 255.255.255.252
+ no shutdown
+
+interface e0/1
+ description LAN-B
+ ip address 10.10.3.1 255.255.255.0
+ no shutdown
+
+! ════════════════════════════════════════════════════════════
+!  RUTA DEFAULT
+! ════════════════════════════════════════════════════════════
+ip route 0.0.0.0 0.0.0.0 200.0.0.9
+
+! ════════════════════════════════════════════════════════════
+!  IKEv2
+! ════════════════════════════════════════════════════════════
+crypto ikev2 proposal PROP-DMVPN
+ encryption aes-cbc-256
+ integrity sha256
+ group 14
+
+crypto ikev2 policy POL-DMVPN
+ proposal PROP-DMVPN
+
+crypto ikev2 keyring KR-DMVPN
+ peer HUB
+  address 0.0.0.0 0.0.0.0
+  pre-shared-key Cisco12345
+
+crypto ikev2 profile PROF-DMVPN
+ match identity remote address 0.0.0.0
+ authentication remote pre-share
+ authentication local pre-share
+ keyring local KR-DMVPN
+
+! ════════════════════════════════════════════════════════════
+!  IPSEC
+! ════════════════════════════════════════════════════════════
+crypto ipsec transform-set TS-DMVPN esp-aes 256 esp-sha256-hmac
+ mode transport
+
+crypto ipsec profile PROF-IPSEC-DMVPN
+ set transform-set TS-DMVPN
+ set pfs group14
+ set ikev2-profile PROF-DMVPN
+
+! ════════════════════════════════════════════════════════════
+!  TÚNEL mGRE — SPOKE2 FASE 3
+! ════════════════════════════════════════════════════════════
+interface Tunnel0
+ description DMVPN-SPOKE2-F3
+ ip address 10.0.0.3 255.255.255.0
+ no ip redirects
+ ip mtu 1400
+ ip nhrp authentication nhrpkey
+ ip nhrp network-id 100
+ ip nhrp nhs 10.0.0.1
+ ip nhrp map 10.0.0.1 200.0.0.2
+ ip nhrp map multicast 200.0.0.2
+ ip nhrp shortcut
+ tunnel source e0/0
+ tunnel mode gre multipoint
+ tunnel protection ipsec profile PROF-IPSEC-DMVPN
+ no shutdown
+
+! ════════════════════════════════════════════════════════════
+!  EIGRP
+! ════════════════════════════════════════════════════════════
+router eigrp 100
+ network 10.0.0.0 0.0.0.255
+ network 10.10.3.0 0.0.0.255
+ no auto-summary
+```
+
+---
+
+##  Verificación
+
+### Ver estado DMVPN
+```cisco
+show dmvpn
+```
+
+### Ver NHRP — shortcut routes
+```cisco
+show ip nhrp
+```
+Después del primer ping Spoke-to-Spoke aparece:
+```
+10.0.0.3/32 via 10.0.0.3
+  Type: dynamic  Flags: router nhop   ← shortcut instalada
+```
+
+### Ver vecinos EIGRP
+```cisco
+show ip eigrp neighbor
+```
+
+### Ver rutas EIGRP — ANTES del primer ping
+```cisco
+show ip route eigrp
+```
+```
+D    10.10.3.0/24 [90/...] via 10.0.0.1   ← via HUB
+```
+
+### Ver rutas EIGRP — DESPUÉS del primer ping
+```cisco
+show ip route eigrp
+```
+```
+D    10.10.3.0/24 [90/...] via 10.0.0.3   ← via SPOKE2 directo ✅
+```
+
+### Ver SA IKEv2
+```cisco
+show crypto ikev2 sa
+```
+
+### Ver paquetes cifrados
+```cisco
+show crypto ipsec sa | include encaps|decaps
+```
+
+### Ping spoke a spoke
+```
+PC1> ping 10.10.3.100 repeat 10
+```
+
+---
+
+##  Cómo Demostrar la Diferencia con Fase 2
+
+```
+PASO 1 — Limpiar NHRP antes del ping:
+  SPOKE1-F3# clear ip nhrp
+
+PASO 2 — Ver ruta ANTES del ping:
+  SPOKE1-F3# show ip route eigrp
+  → 10.10.3.0 via 10.0.0.1 (HUB)
+
+PASO 3 — Hacer ping con 10 repeticiones:
+  PC1> ping 10.10.3.100 repeat 10
+
+PASO 4 — Ver ruta DESPUÉS del ping:
+  SPOKE1-F3# show ip route eigrp
+  → 10.10.3.0 via 10.0.0.3 (SPOKE2 DIRECTO) ✅
+
+DIFERENCIA VISIBLE: La ruta cambió de via HUB a via SPOKE2
+```
+
+
+---
+##  Requisitos
+
+- GNS3
+- Cisco IOU L3 (imagen 15.4.1T o superior)
+- Cisco IOU L2 (para switches)
+- VPCS
+
+---
+
+> ** ADVERTENCIA:** Estas configuraciones están diseñadas **EXCLUSIVAMENTE** para fines educativos en entornos simulados como **GNS3**.
+
+---
+
+*Autor: Roberto de Jesus — Matrícula: 2023-0348*
+*Fecha: 2025*
