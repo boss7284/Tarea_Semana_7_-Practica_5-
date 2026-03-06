@@ -39,6 +39,8 @@ Este laboratorio implementa una **VPN DMVPN Fase 3** con **1 Hub y 2 Spokes**, u
 
 ##  Topología del Laboratorio
 
+![image alt](https://github.com/boss7284/d.u.m.p2/blob/dfef801587d2544f41c55d284f5cf5c5c95251a0/Screenshot%202026-03-05%20000430.png)
+
 ### Diagrama de Red
 
 ```
