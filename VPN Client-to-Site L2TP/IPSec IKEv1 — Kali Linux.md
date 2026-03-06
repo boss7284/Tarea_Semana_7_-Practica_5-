@@ -44,6 +44,7 @@ Este laboratorio implementa una **VPN Client-to-Site con L2TP/IPSec IKEv1**. Un 
 
 ##  Topología del Laboratorio
 
+![image alt](https://github.com/boss7284/d.u.m.p2/blob/a38f651cd85e20c324666e7d4cd853c60b898eab/imagen%20gns3%20finall2xtp.jpeg)
 ### Diagrama de Red
 
 ```
