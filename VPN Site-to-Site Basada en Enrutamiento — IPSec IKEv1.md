@@ -37,7 +37,9 @@ Este laboratorio implementa una **VPN Site-to-Site basada en enrutamiento (Route
 
 ---
 
-## 🖧 Topología del Laboratorio
+##  Topología del Laboratorio
+
+![image alt](https://github.com/boss7284/d.u.m.p2/blob/dfef801587d2544f41c55d284f5cf5c5c95251a0/Screenshot%202026-03-03%20224513.png)
 
 ### Diagrama de Red
 
